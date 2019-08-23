@@ -1,0 +1,2 @@
+Reading the Motor Constants
+https://www.precisionmicrodrives.com/content/reading-the-motor-constants-from-typical-performance-characteristics/
