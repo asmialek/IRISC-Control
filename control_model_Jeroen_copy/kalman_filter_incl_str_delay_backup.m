@@ -17,8 +17,8 @@ gyro_bias_0 = 10/180*pi/3600;                           % initial gyro bias [deg
 RRW = (1/180*pi/3600/sqrt(3600))^2;
 
 % star tracker parameters
-dt_str = 30;                                             % sampling time star tracker
-dt_del_str = 15;                                       % computational time of star tracker
+dt_str = 15;                                             % sampling time star tracker (comp. time + exposure)
+dt_del_str = 5;                                       % computational time of star tracker
 s_str = 0.1/180*pi;
 
 str_upd = ceil(dt_str/dt);                              % number of gyro samples between two start tracker measurements
@@ -27,7 +27,7 @@ del_str = ceil(dt_del_str/dt);                          % number of samples befo
 %N_str = length(time_str);%ceil(N/str_upd);
 
 % generate reference profile
-w_real = 1/1800*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
+w_real = 1/180*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
 %w_real = 5/1800*pi*cos(time*sqrt(9.81/100));                            % angular rotational speed profile [deg/s]
 t_real = cumsum(dt*w_real);                             % angle profile [deg]
 
@@ -105,12 +105,10 @@ for k=1:N-1
         %         S_kf(:,:,k+1) = S_next;
         %         l = l+1;
         
-        %x_est(:,k) = x_est_next;
-        % innovation
-        %nu_next = t_meas(k+1) - H*x_est_next;                       % 'propagation error' (difference between estimated state and measured state)
-        x_est_next_str = x_est(:,k+1-(str_upd - del_str));
-        P_next_str = P(:,:,k - (str_upd - del_str));
-        nu_next = t_meas(k+1) - H*x_est_next_str;
+        % innovation        
+        x_est_next_str = x_est(:,k+1-del_str);
+        P_next_str = P(:,:,k - del_str);
+        nu_next = t_meas(k+1) - H*x_est_next_str;           % 'propagation error' (difference between estimated state and measured state)
         S_next = H*P_next_str*H' + R;
         
         % compute the Kalman gain
