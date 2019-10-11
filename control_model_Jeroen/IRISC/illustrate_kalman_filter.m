@@ -5,14 +5,14 @@ close all
 clc
 
 % simulation parameters
-dt = 5;
+dt = 30;
 t_end = 3600;
 time = [0:dt:t_end];
 N = length(time);
 
 % gyro parameters
-ARW = (.15/180*pi/60)^2;
-gyro_bias_0 = 10/180*pi/3600;
+ARW = (.15/180*pi/60)^2;                                % angular random walk acc. to data sheet [deg/rt(h)]
+gyro_bias_0 = 10/180*pi/3600;                           % initial gyro bias [deg/h]
 RRW = (1/180*pi/3600/sqrt(3600))^2;
 
 % star tracker parameters
@@ -24,11 +24,11 @@ w_real = zeros(1,N);
 t_real = zeros(1,N);
 
 % generate gyro measurements
-gyro_noise = randn(1,N)*sqrt(ARW)/sqrt(dt);
+gyro_noise = randn(1,N)*sqrt(ARW)/sqrt(dt);             % gaussian gyro noise with standard deviation of ARW
 bias_step = gyro_bias_0*ones(1,N);
-bias_step(1:300) = 0;
-bias_drift = cumsum(randn(1,N)*sqrt(RRW)*sqrt(dt));
-gyro_bias = randn(1,1)*gyro_bias_0*ones(1,N) + bias_step + bias_drift;
+%bias_step(1:300) = 0;                                   % just for illustration
+bias_drift = cumsum(randn(1,N)*sqrt(RRW)*sqrt(dt));     % models time-variable random bias drift 
+gyro_bias = randn(1,1)*gyro_bias_0*ones(1,N) + 0*bias_step + bias_drift;  % models total gyro bias (random constant gyro bias + time-variable random bias drift + whatever other gyro errors one can think of)
 w_meas = w_real + gyro_noise + gyro_bias;
 
 % generate star tracker measurements
@@ -71,6 +71,7 @@ for k=1:N-1
     % propagate
     P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
     
+    
     % innovation
     nu_next = t_meas(k+1) - H*x_est_next;
     S_next = H*P_next*H' + R;
@@ -83,9 +84,9 @@ for k=1:N-1
     P_upd = (eye(2)-K*H)*P_next;
     
     % include bias step
-    if k==300
-        P_upd(2,2) = P_upd(2,2) + gyro_bias_0^2;
-    end
+%     if k==300
+%         P_upd(2,2) = P_upd(2,2) + gyro_bias_0^2;
+%     end
     
     % save estimates
     x_est(:,k+1) = x_upd;
