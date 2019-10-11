@@ -1,4 +1,6 @@
 % routine to initialize all parameters
+clear
+clc
 
 % simulation parameters
 dt_sim = .01;
