@@ -3,9 +3,10 @@
 clear all
 close all
 clc
+rng(17); % set seed for random numbers to achieve the same results for different runs - only interesting for trying out e.g. different sample times. Disable if different noise pattern are needed!
 
 % simulation parameters
-dt = 1/40;                                                 % sample time of the system, e.g. 1/gyro_freq if gyro is sensor with highest sample rate
+dt = 1/100;                                                 % sample time of the system, e.g. 1/gyro_freq if gyro is sensor with highest sample rate
 t_end = 3600;
 time = [0:dt:t_end];
 N = length(time);
@@ -13,27 +14,28 @@ N = length(time);
 % gyro parameters
 ARW = (.15/180*pi/60)^2;                                % angular random walk acc. to data sheet [deg/rt(h)]
 gyro_bias_0 = 10/180*pi/3600;                           % initial gyro bias [deg/h]
-RRW = (1/180*pi/3600/sqrt(3600))^2;
+RRW = (1/180*pi/3600/sqrt(3600))^2;                   % rate random walk ("variation of the bias drift") (approx: 1 deg/hr/rt(hr))
 
 % star tracker parameters
-dt_str = 5;                                             % sampling time star tracker
-dt_del_str = 0;                                       % computational time of star tracker
+dt_str = 10;                                             % sampling time star tracker (comp. time + exposure)
+dt_del_str = 8;                                       % computational time of star tracker
 s_str = 0.1/180*pi;
 
 str_upd = ceil(dt_str/dt);                              % number of gyro samples between two start tracker measurements
 del_str = ceil(dt_del_str/dt);                          % number of samples before star tracker data is available (due to computational delay)
 %time_str = 0:dt_str:t_end;
-%N_str = length(time_str);%ceil(N/str_upd); 
+%N_str = length(time_str);%ceil(N/str_upd);
 
 % generate reference profile
-w_real = 1/180*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
+%w_real = 1/180*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
+w_real = 5/1800*pi*cos(time*sqrt(9.81/100));                            % angular rotational speed profile [deg/s]
 t_real = cumsum(dt*w_real);                             % angle profile [deg]
 
 % generate gyro measurements
 gyro_noise = randn(1,N)*sqrt(ARW)/sqrt(dt);             % gaussian gyro noise with standard deviation of ARW
 bias_step = gyro_bias_0*ones(1,N);
 bias_step(1:300) = 0;                                   % just for illustration
-bias_drift = cumsum(randn(1,N)*sqrt(RRW)*sqrt(dt));     % models time-variable random bias drift 
+bias_drift = cumsum(randn(1,N)*sqrt(RRW)*sqrt(dt));     % models time-variable random bias drift
 gyro_bias = randn(1,1)*gyro_bias_0*ones(1,N) + 0*bias_step + bias_drift;  % models total gyro bias (random constant gyro bias + time-variable random bias drift + whatever other gyro errors one can think of)
 w_meas = w_real + gyro_noise + gyro_bias;
 
@@ -47,7 +49,7 @@ t_meas = t_meas(:,1:N);
 
 % run the kalman filter
 x_est = zeros(2,N);
-x_est(:,1) = [t_meas(:,1);0];
+x_est(:,1) = [2/180*pi;0];
 
 % propagation matrices
 Phi = [1 -dt;0 1];
@@ -83,17 +85,38 @@ for k=1:N-1
     P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
     
     if k==l*str_upd % update only if new star tracker measurement is available
-        x_est_next = x_est(:,k-del_str);
-        % innovation
-        nu_next = t_meas(k+1) - H*x_est_next;                       % 'propagation error' (difference between estimated state and measured state)
-        S_next = H*P_next*H' + R;
+        
+        %         x_est(:,k) = x_est_next ;
+        %         % innovation
+        %         nu_next = t_meas(k+1) - H*x_est_next;                       % 'propagation error' (difference between estimated state and measured state)
+        %         S_next = H*P_next*H' + R;
+        %
+        %         % compute the Kalman gain
+        %         K = P_next*H'/S_next;
+        %
+        %         % update of states and covariance
+        %         x_upd = x_est_next + K*nu_next;
+        %         P_upd = (eye(2)-K*H)*P_next;
+        %
+        %         % save estimates
+        %         x_est(:,k+1) = x_upd;
+        %         P(:,:,k+1) = P_upd;
+        %         nu_kf(:,k+1) = nu_next;
+        %         S_kf(:,:,k+1) = S_next;
+        %         l = l+1;
+        
+        % innovation        
+        x_est_next_str = x_est(:,k+1-del_str);
+        P_next_str = P(:,:,k - del_str);
+        nu_next = t_meas(k+1) - H*x_est_next_str;           % 'propagation error' (difference between estimated state and measured state)
+        S_next = H*P_next_str*H' + R;
         
         % compute the Kalman gain
-        K = P_next*H'/S_next;
+        K = P_next_str*H'/S_next;
         
         % update of states and covariance
-        x_upd = x_est_next + K*nu_next;
-        P_upd = (eye(2)-K*H)*P_next;
+        x_upd = x_est_next_str + K*nu_next;
+        P_upd = (eye(2)-K*H)*P_next_str;
         
         % save estimates
         x_est(:,k+1-del_str) = x_upd;
@@ -102,8 +125,8 @@ for k=1:N-1
         S_kf(:,:,k+1-del_str) = S_next;
         l = l+1;
         
-        % propagate with new star tracker measurement taking delay into
-        % account
+        %         propagate with new star tracker measurement taking delay into
+        %         account
         P_prev = P_upd;
         P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
         
@@ -117,7 +140,7 @@ for k=1:N-1
             
             % propagate state vector
             x_est_next = Phi * x_prev + Gamma * w_meas_k;
-
+            
             
             % save estimates
             x_est(:,k+1-del_str+m) = x_est_next;              % only propagate, don't update
@@ -141,18 +164,18 @@ for k=1:N-1
     end
     
     % include bias step
-%     if k==300
-%         P_upd(2,2) = P_upd(2,2) + gyro_bias_0^2;
-%     end
+    %     if k==300
+    %         P_upd(2,2) = P_upd(2,2) + gyro_bias_0^2;
+    %     end
     
-%     % save estimates
-%     x_est(:,k+1) = x_upd;
-%     P(:,:,k+1) = P_upd;
-%     nu_kf(:,k+1) = nu_next;
-%     S_kf(:,:,k+1) = S_next;
+    %     % save estimates
+    %     x_est(:,k+1) = x_upd;
+    %     P(:,:,k+1) = P_upd;
+    %     nu_kf(:,k+1) = nu_next;
+    %     S_kf(:,:,k+1) = S_next;
     
 end
-    
+
 P11 = P(1,1,:);
 P11 = P11(:);
 
@@ -168,6 +191,7 @@ subplot(211)
 plot(time,t_real*180/pi)
 hold all
 plot(time,t_meas*180/pi)
+plot(time,x_est(1,:)*180/pi)
 xlabel('Time [sec]')
 ylabel('\theta [^\circ]')
 subplot(212)

@@ -3,11 +3,11 @@
 clear all
 close all
 clc
-rng(17); % set seed for random numbers to achieve the same results for different runs - only interesting for trying out e.g. different sample times. Disable if different noise pattern are needed!
+rng(23); % set seed for random numbers to achieve the same results for different runs - only interesting for trying out e.g. different sample times. Disable if different noise pattern are needed!
 
 % simulation parameters
-dt = 0.1;                                                 % sample time of the system, e.g. 1/gyro_freq if gyro is sensor with highest sample rate
-t_end = 100;
+dt = 1/100;                                                 % sample time of the system, e.g. 1/gyro_freq if gyro is sensor with highest sample rate
+t_end = 1000;
 %% 
 time = [0:dt:t_end];
 %time = 0;
@@ -20,9 +20,10 @@ RRW = (1/180*pi/3600/sqrt(3600))^2;
 
 % star tracker parameters
 s_init = 0.1/180*pi;
-init_time = 30;                                         % initialisation time of the star tracker (in s) 
+init_time = 300;                                         % initialisation time of the star tracker (in s) 
 init_steps = init_time/dt;                          % number of initialisation steps
 init_steps = floor(init_steps);
+%init_steps = 0;
 
 % generate reference profile
 w_real = 1/1800*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
@@ -32,13 +33,13 @@ w_real = w_real(:,1:N);                                 % include motionless ini
 w_real(:,ceil(3*N/4):N) = 0;
 w_real(:,1:N) = 0;
 t_real = cumsum(dt*w_real);                             % angle profile [deg]
-t_real = cumsum(dt*w_real) + 1;
+%t_real = cumsum(dt*w_real) + 1;
 
 % generate gyro measurements
 gyro_noise = randn(1,N)*sqrt(ARW)/sqrt(dt);             % gaussian gyro noise with standard deviation of ARW                              
 gyro_bias = randn(1,1)*gyro_bias_0*ones(1,N);           % models total gyro bias (random constant gyro bias)
 w_meas = w_real + gyro_noise + gyro_bias;
-w_meas(:,1:N) = 0.001;
+%w_meas(:,1:N) = 0.001;
 
 % generate star tracker measurements
 %str_noise = randn(1,N)*s_init;
@@ -120,10 +121,6 @@ for k=1:N-1
         P(:,:,k+1) = P_next;                    % no updated values
         nu_kf(:,k+1) = nu_next;                 % update
         S_kf(:,:,k+1) = S_kf(:,:,k);            % no updated values
-        
-        k
-        x_est_next
-        P_next
     
     end
     

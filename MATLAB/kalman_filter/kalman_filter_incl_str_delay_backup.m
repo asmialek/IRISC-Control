@@ -7,7 +7,7 @@ rng(17); % set seed for random numbers to achieve the same results for different
 
 % simulation parameters
 dt = 1/40;                                                 % sample time of the system, e.g. 1/gyro_freq if gyro is sensor with highest sample rate
-t_end = 3600;
+t_end = 1800;
 time = [0:dt:t_end];
 N = length(time);
 
@@ -17,8 +17,8 @@ gyro_bias_0 = 10/180*pi/3600;                           % initial gyro bias [deg
 RRW = (1/180*pi/3600/sqrt(3600))^2;
 
 % star tracker parameters
-dt_str = 15;                                             % sampling time star tracker (comp. time + exposure)
-dt_del_str = 5;                                       % computational time of star tracker
+dt_str = 10;                                             % sampling time star tracker (comp. time + exposure)
+dt_del_str = 8;                                       % computational time of star tracker
 s_str = 0.1/180*pi;
 
 str_upd = ceil(dt_str/dt);                              % number of gyro samples between two start tracker measurements
@@ -27,8 +27,8 @@ del_str = ceil(dt_del_str/dt);                          % number of samples befo
 %N_str = length(time_str);%ceil(N/str_upd);
 
 % generate reference profile
-w_real = 1/180*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
-%w_real = 5/1800*pi*cos(time*sqrt(9.81/100));                            % angular rotational speed profile [deg/s]
+%w_real = 1/180*pi*ones(1,N);                            % angular rotational speed profile [deg/s]
+w_real = 5/1800*pi*cos(time*sqrt(9.81/100));                            % angular rotational speed profile [deg/s]
 t_real = cumsum(dt*w_real);                             % angle profile [deg]
 
 % generate gyro measurements
@@ -46,6 +46,9 @@ t_meas = t_real + str_noise;
 t_str_del = zeros(1,del_str);
 t_meas = [t_str_del, t_meas];
 t_meas = t_meas(:,1:N);
+%'error' in measuring / computing the star tracker computation delay time
+%(in steps)
+del_str = del_str;
 
 % run the kalman filter
 x_est = zeros(2,N);
@@ -128,7 +131,7 @@ for k=1:N-1
         %         propagate with new star tracker measurement taking delay into
         %         account
         P_prev = P_upd;
-        P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
+        %P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
         
         for m = 1:del_str
             
@@ -140,6 +143,10 @@ for k=1:N-1
             
             % propagate state vector
             x_est_next = Phi * x_prev + Gamma * w_meas_k;
+            
+            % propagate P
+            P_next = Phi*P_prev*Phi' + Upsilon*Q*Upsilon' + Upsilon2*Q2*Upsilon2';
+            P_prev = P_next;
             
             
             % save estimates
@@ -198,6 +205,7 @@ subplot(212)
 plot(time,w_real*180/pi*3600)
 hold all
 plot(time,w_meas*180/pi*3600)
+%plot(time,(w_real - x_est(2,:))*180/pi*3600)
 xlabel('Time [sec]')
 ylabel('\omega [^\circ/h]')
 
@@ -208,6 +216,7 @@ hold all
 plot(time,(P11.^.5)*180/pi,'k')
 plot(time,-(P11.^.5)*180/pi,'k')
 xlabel('Time [sec]')
+ylim([-0.4, 0.4])
 ylabel('est. error \theta [^\circ]')
 subplot(212)
 plot(time,(x_est(2,:)-gyro_bias)*180/pi*3600)
@@ -216,7 +225,7 @@ plot(time,(P22.^.5)*180/pi*3600,'k')
 plot(time,-(P22.^.5)*180/pi*3600,'k')
 xlabel('Time [sec]')
 ylabel('est. error bias [^\circ/h]')
-
+ 
 % figure
 % plot(time,nu_kf(1,:)*180/pi)
 % hold all
